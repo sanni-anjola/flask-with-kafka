@@ -1,0 +1,107 @@
+services:
+  book_service_db:
+    image: postgres:16.4
+    environment:
+      POSTGRES_DB: book_service_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: mysecretpassword
+      FLASK_ENV: development
+    volumes:
+      - ./book:/app 
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d book_service_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  admin_service_db:
+    image: postgres:16.4
+    environment:
+      POSTGRES_DB: admin_service_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: mysecretpassword
+      FLASK_ENV: development
+    volumes:
+      - ./admin:/app 
+    ports:
+      - "5434:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d admin_service_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  
+  flyway_book:
+    image: flyway/flyway:10.18
+    command: -url=jdbc:postgresql://book_service_db:5432/book_service_db -schemas=public -user=postgres -password=mysecretpassword -locations=filesystem:/migrations migrate
+    volumes:
+      - ./book/migrations:/migrations
+    depends_on:
+      book_service_db:
+        condition: service_healthy
+
+  flyway_admin:
+    image: flyway/flyway:10.18
+    command: -url=jdbc:postgresql://admin_service_db:5432/admin_service_db -schemas=public -user=postgres -password=mysecretpassword -locations=filesystem:/migrations migrate
+    volumes:
+      - ./admin/migrations:/migrations
+    depends_on:
+      admin_service_db:
+        condition: service_healthy
+
+  kafka:
+    image: confluentinc/cp-kafka:latest
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    ports:
+      - "9092:9092"
+    depends_on:
+      - zookeeper
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:latest
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+    ports:
+      - "2181:2181"
+  
+  kafka_ui:
+    image: provectuslabs/kafka-ui:latest
+    environment:
+      KAFKA_CLUSTERS_0_NAME: "local"
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: "kafka:9092"
+      KAFKA_CLUSTERS_0_ZOOKEEPER: "zookeeper:2181"
+    ports:
+      - "8080:8080"
+    depends_on:
+      - kafka
+      - zookeeper
+
+  book_service:
+    build: ./book
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./book:/app
+      - ./util:/app/util
+    depends_on:
+      - book_service_db
+      - flyway_book
+      - kafka
+
+  admin_service:
+    build: ./admin
+    ports:
+      - "5001:5001"
+    volumes:
+      - ./admin:/app
+      - ./util:/app/util
+    depends_on:
+      - admin_service_db
+      - flyway_admin
+      - kafka
