@@ -94,6 +94,21 @@ services:
       - flyway_book
       - kafka
 
+  # test_book_service:
+  #   build:
+  #     context: ./book
+  #     dockerfile: Dockerfile
+  #   command: pytest --cov=book_service --cov-report=term-missing
+  #   depends_on:
+  #     - book_service_db
+  #     - flyway_book
+  #     - kafka
+  #   volumes:
+  #     - ./book:/app
+  #     - ./util:/app/util
+  #   environment:
+  #     - PYTHONPATH=/app
+
   admin_service:
     build: ./admin
     ports:
@@ -105,3 +120,19 @@ services:
       - admin_service_db
       - flyway_admin
       - kafka
+    
+  
+  # test_admin_service:
+  #   build:
+  #     context: ./admin
+  #     dockerfile: Dockerfile
+  #   command: pytest --cov=admin_service --cov-report=term-missing
+  #   depends_on:
+  #     - admin_service_db
+  #     - flyway_admin
+  #   volumes:
+  #     - ./admin:/app
+  #     - ./util:/app/util
+  #   environment:
+  #     - PYTHONPATH=/app
+
